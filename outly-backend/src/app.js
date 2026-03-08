@@ -1,11 +1,16 @@
 import express from "express";
 import cors from "cors";
 
+import { ClerkExpressRequireAuth, ClerkExpressWithAuth } from "@clerk/express"
+
+
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(ClerkExpressWithAuth())
+
 
 app.get("/api/health", (req, res) => {
   res.status(200).json({
@@ -14,6 +19,11 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+
+import eventRoutes from "./routes/event.routes.js"
+
+app.use("/api/events", ClerkExpressRequireAuth(), eventRoutes)
+
 app.use((err, req, res, next) => {
   res.status(err.statusCode || 500).json({
     success: false,
@@ -21,8 +31,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-import eventRoutes from "./routes/event.routes.js"
 
-app.use("/api/events", eventRoutes)
 
 export default app;
