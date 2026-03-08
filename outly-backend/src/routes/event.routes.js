@@ -8,5 +8,6 @@ router.post("/", createEvent)
 router.get("/nearby", getNearbyEvents)
 router.post("/:id/join", joinEvent)
 router.get("/:id", getEventById)
+router.delete("/:id/leave", leaveEvent)
 
 export default router
