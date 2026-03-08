@@ -23,6 +23,6 @@ app.use((err, req, res, next) => {
 
 import eventRoutes from "./routes/event.routes.js"
 
-app.use("/events", eventRoutes)
+app.use("/api/events", eventRoutes)
 
 export default app;

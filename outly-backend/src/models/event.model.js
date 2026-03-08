@@ -5,16 +5,28 @@ RETURNING *;
 `
 
 export const getNearbyEventsQuery = `
-SELECT *,
+SELECT 
+e.*,
+COUNT(ep.user_id) AS participants,
 ST_Distance(
-    location,
+    e.location,
     ST_SetSRID(ST_MakePoint($1,$2),4326)::geography
 ) AS distance
-FROM events
+FROM events e
+LEFT JOIN event_participants ep
+ON e.id = ep.event_id
 WHERE ST_DWithin(
-    location,
+    e.location,
     ST_SetSRID(ST_MakePoint($1,$2),4326)::geography,
     5000
 )
+GROUP BY e.id
 ORDER BY distance
+`
+
+export const joinEventQuery = `
+INSERT INTO event_participants (user_id, event_id)
+VALUES ($1,$2)
+ON CONFLICT (user_id,event_id) DO NOTHING
+RETURNING *;
 `
