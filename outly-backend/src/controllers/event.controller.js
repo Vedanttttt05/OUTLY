@@ -4,7 +4,7 @@ import { createEventQuery, getNearbyEventsQuery , joinEventQuery , getEventByIdQ
 
 export const createEvent = asyncHandler(async (req, res) => {
 
-    const { title, description, lat, lng} = req.body
+    const { title, description, lat, lng } = req.body
     const userId = req.auth.userId
 
     const result = await pool.query(createEventQuery, [
@@ -15,75 +15,69 @@ export const createEvent = asyncHandler(async (req, res) => {
         userId
     ])
 
-    res.json({
-        success: true,
-        data: result.rows[0]
-    })
+    return res
+        .status(201)
+        .json(new ApiResponse(201, "Event created successfully", result.rows[0]))
 })
+
 
 export const getNearbyEvents = asyncHandler(async (req, res) => {
 
     const { lat, lng } = req.query
-    if(!lat || !lng){
-  return res.status(400).json({
-    success:false,
-    message:"Latitude and longitude required"
-  })
-}
+
+    if (!lat || !lng) {
+        throw new ApiError("Latitude and longitude required", "", [], 400)
+    }
 
     const result = await pool.query(getNearbyEventsQuery, [lng, lat])
 
-    res.json({
-        success: true,
-        events: result.rows
-    })
+    return res.json(
+        new ApiResponse(200, "Nearby events fetched", result.rows)
+    )
 })
 
 
-export const joinEvent = asyncHandler(async (req,res)=>{
+export const joinEvent = asyncHandler(async (req, res) => {
 
     const { id } = req.params
     const userId = req.auth.userId
 
-    const event = await pool.query(getEventByIdQuery,[id])
+    const event = await pool.query(getEventByIdQuery, [id])
+
     if (!event.rows.length) {
-    return res.status(404).json({
-    success: false,
-    message: "Event not found"
-  })
-}
+        throw new ApiError("Event not found", "", [], 404)
+    }
 
-    if(event.rows[0].created_by === userId){
-    return res.status(400).json({
-    success:false,
-    message:"Cannot join your own event"
-  })
-}
+    if (event.rows[0].created_by === userId) {
+        throw new ApiError("Cannot join your own event", "", [], 400)
+    }
 
-    const result = await pool.query(joinEventQuery,[
+    const result = await pool.query(joinEventQuery, [
         userId,
         id
     ])
-    
-    
 
-    res.json({
-        success:true,
-        data:result.rows[0]
-    })
+    return res.json(
+        new ApiResponse(200, "Joined event successfully", result.rows[0])
+    )
 })
 
-export const getEventById = asyncHandler(async (req,res)=>{
+
+export const getEventById = asyncHandler(async (req, res) => {
 
     const { id } = req.params
 
-    const result = await pool.query(getEventByIdQuery,[id])
+    const result = await pool.query(getEventByIdQuery, [id])
 
-    res.json({
-        success:true,
-        data:result.rows[0]
-    })
+    if (!result.rows.length) {
+        throw new ApiError("Event not found", "", [], 404)
+    }
+
+    return res.json(
+        new ApiResponse(200, "Event fetched", result.rows[0])
+    )
 })
+
 
 export const leaveEvent = asyncHandler(async (req, res) => {
 
@@ -91,20 +85,19 @@ export const leaveEvent = asyncHandler(async (req, res) => {
     const userId = req.auth.userId
 
     const result = await pool.query(leaveEventQuery, [
-  userId,
-  id
-])
-if(!result.rows.length){
-  return res.status(400).json({
-    success:false,
-    message:"User not part of this event"
-  })
-}
+        userId,
+        id
+    ])
 
-res.json({
-  success: true,
-  message: "Left event",
-  participants: result.rows[0].participants
-})
-})
+    if (!result.rows.length) {
+        throw new ApiError("User not part of this event", "", [], 400)
+    }
 
+    return res.json(
+        new ApiResponse(
+            200,
+            "Left event successfully",
+            { participants: result.rows[0].participants }
+        )
+    )
+})
