@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 
-import { ClerkExpressRequireAuth, ClerkExpressWithAuth } from "@clerk/express"
+import { clerkMiddleware, requireAuth } from "@clerk/express"
 
 import webhookRoutes from "./routes/webhook.routes.js"
 
@@ -12,7 +12,8 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use(ClerkExpressWithAuth())
+app.use(clerkMiddleware())
+
 
 
 app.use("/api/webhooks", webhookRoutes)
@@ -27,7 +28,7 @@ app.get("/api/health", (req, res) => {
 
 import eventRoutes from "./routes/event.routes.js"
 
-app.use("/api/events", ClerkExpressRequireAuth(), eventRoutes)
+app.use("/api/events", requireAuth(), createEvent)
 
 app.use((err, req, res, next) => {
   res.status(err.statusCode || 500).json({
