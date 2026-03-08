@@ -1,0 +1,10 @@
+import express from "express"
+import { createEvent, getNearbyEvents } from "../controllers/event.controller.js"
+
+const router = express.Router()
+
+router.post("/", createEvent)
+
+router.get("/nearby", getNearbyEvents)
+
+export default router

@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 
+
 const app = express();
 
 app.use(cors());
@@ -19,5 +20,9 @@ app.use((err, req, res, next) => {
     message: err.message || "Internal Server Error",
   });
 });
+
+import eventRoutes from "./routes/event.routes.js"
+
+app.use("/events", eventRoutes)
 
 export default app;
