@@ -4,7 +4,8 @@ import { createEventQuery, getNearbyEventsQuery , joinEventQuery , getEventByIdQ
 
 export const createEvent = asyncHandler(async (req, res) => {
 
-    const { title, description, lat, lng, userId } = req.body
+    const { title, description, lat, lng} = req.body
+    const userId = req.auth.userId
 
     const result = await pool.query(createEventQuery, [
         title,
@@ -42,7 +43,7 @@ export const getNearbyEvents = asyncHandler(async (req, res) => {
 export const joinEvent = asyncHandler(async (req,res)=>{
 
     const { id } = req.params
-    const { userId } = req.body
+    const userId = req.auth.userId
 
     const event = await pool.query(getEventByIdQuery,[id])
     if (!event.rows.length) {
@@ -87,7 +88,7 @@ export const getEventById = asyncHandler(async (req,res)=>{
 export const leaveEvent = asyncHandler(async (req, res) => {
 
     const { id } = req.params
-    const { userId } = req.body
+    const userId = req.auth.userId
 
     const result = await pool.query(leaveEventQuery, [
   userId,
