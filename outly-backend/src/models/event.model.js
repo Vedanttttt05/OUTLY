@@ -30,3 +30,14 @@ VALUES ($1,$2)
 ON CONFLICT (user_id,event_id) DO NOTHING
 RETURNING *;
 `
+
+export const getEventByIdQuery = `
+SELECT 
+e.*,
+COUNT(ep.user_id) AS participants
+FROM events e
+LEFT JOIN event_participants ep
+ON e.id = ep.event_id
+WHERE e.id = $1
+GROUP BY e.id
+`

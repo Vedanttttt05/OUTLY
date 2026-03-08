@@ -1,6 +1,6 @@
 import pool from "../db/connection.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
-import { createEventQuery, getNearbyEventsQuery , joinEventQuery} from "../models/event.model.js"
+import { createEventQuery, getNearbyEventsQuery , joinEventQuery , getEventByIdQuery} from "../models/event.model.js"
 
 export const createEvent = asyncHandler(async (req, res) => {
 
@@ -42,6 +42,18 @@ export const joinEvent = asyncHandler(async (req,res)=>{
         userId,
         id
     ])
+
+    res.json({
+        success:true,
+        data:result.rows[0]
+    })
+})
+
+export const getEventById = asyncHandler(async (req,res)=>{
+
+    const { id } = req.params
+
+    const result = await pool.query(getEventByIdQuery,[id])
 
     res.json({
         success:true,
