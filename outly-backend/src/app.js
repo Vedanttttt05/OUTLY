@@ -28,7 +28,7 @@ app.get("/api/health", (req, res) => {
 
 import eventRoutes from "./routes/event.routes.js"
 
-app.use("/api/events", requireAuth(), createEvent)
+app.use("/api/events",  eventRoutes)
 
 app.use((err, req, res, next) => {
   res.status(err.statusCode || 500).json({

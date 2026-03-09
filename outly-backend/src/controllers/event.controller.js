@@ -1,4 +1,6 @@
 import pool from "../db/connection.js"
+import ApiResponse from "../utils/apiResponse.js"
+import ApiError from "../utils/apiError.js"
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { createEventQuery, getNearbyEventsQuery , joinEventQuery , getEventByIdQuery , leaveEventQuery} from "../models/event.model.js"
 
