@@ -4,7 +4,7 @@ import morgan from "morgan";
 import http from "http";
 import { initSocket } from "./socket.js";
 import { clerkMiddleware } from "@clerk/express";
-import { mockAuth } from "./middleware/mockAuth.js"
+import { mockAuth } from "./middlewares/mockAuth.js"
 
 
 import webhookRoutes from "./routes/webhook.routes.js";

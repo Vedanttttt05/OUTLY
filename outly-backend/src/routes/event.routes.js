@@ -1,5 +1,5 @@
 import { Router } from "express"
-import { mockAuth } from "../middleware/mockAuth.js"
+import { mockAuth } from "../middlewares/mockAuth.js" 
 import { createEvent, getNearbyEvents, joinEvent, getEventById, leaveEvent } from "../controllers/event.controller.js"
 
 const router = Router()

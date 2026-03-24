@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+  const socket = io("http://localhost:5000")
+
+  socket.on("connect", () => {
+    console.log("connected:", socket.id)
+    socket.emit("join_event", "916de614-58d5-4c20-9c9f-c570e6aadbd1")
+  })
+
+  socket.on("message_history", (msgs) => {
+    console.log("history:", msgs)
+  })
+
+  socket.on("new_message", (msg) => {
+    console.log("new message:", msg)
+  })
+
+  socket.on("connect_error", (err) => {
+    console.error("error:", err.message)
+  })
+
+  setTimeout(() => {
+    socket.emit("send_message", {
+      eventId: "916de614-58d5-4c20-9c9f-c570e6aadbd1",
+      message: "hello from browser"
+    })
+  }, 2000)
+</script>
+</body>
+</html>
