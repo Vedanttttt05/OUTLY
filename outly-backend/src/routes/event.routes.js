@@ -1,13 +1,13 @@
-import express from "express"
-import { createEvent, getNearbyEvents , joinEvent  , getEventById , leaveEvent} from "../controllers/event.controller.js"
+import { Router } from "express"
+import { mockAuth } from "../middleware/mockAuth.js"
+import { createEvent, getNearbyEvents, joinEvent, getEventById, leaveEvent } from "../controllers/event.controller.js"
 
-const router = express.Router()
-
-router.post("/", createEvent)
+const router = Router()
 
 router.get("/nearby", getNearbyEvents)
-router.post("/:id/join", joinEvent)
 router.get("/:id", getEventById)
-router.delete("/:id/leave", leaveEvent)
+router.post("/", mockAuth, createEvent)
+router.post("/:id/join", mockAuth, joinEvent)
+router.post("/:id/leave", mockAuth, leaveEvent)
 
 export default router

@@ -42,11 +42,7 @@ WHERE e.id = $1
 GROUP BY e.id
 `
 export const leaveEventQuery = `
-WITH removed AS (
-    DELETE FROM event_participants
-    WHERE user_id = $1 AND event_id = $2
-)
-SELECT COUNT(*) AS participants
-FROM event_participants
-WHERE event_id = $2;
+DELETE FROM event_participants
+WHERE user_id = $1 AND event_id = $2
+RETURNING event_id;
 `
