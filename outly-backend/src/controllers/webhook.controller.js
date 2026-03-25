@@ -3,16 +3,17 @@ import { asyncHandler } from "../utils/asyncHandler.js"
 import ApiResponse from "../utils/apiResponse.js"
 import ApiError from "../utils/apiError.js"
 
-export const clerkWebhook = asyncHandler(async (req, res) => {
 
-  const event = req.body
+export const clerkWebhook = asyncHandler(async (req, res) => {
+  // Parse raw body
+  const payload = JSON.parse(req.body.toString())
+  const event = payload
 
   if (!event || !event.type) {
     throw new ApiError("Invalid webhook payload", "", [], 400)
   }
 
   const user = event.data
-
   switch (event.type) {
 
     case "user.created": {
