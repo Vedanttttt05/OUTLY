@@ -5,7 +5,7 @@ import { createEvent, getNearbyEvents, joinEvent, getEventById, leaveEvent, getM
 const router = Router()
 
 router.get("/nearby", getNearbyEvents)
-router.get("/user/:userId", requireAuth(), getMyEvents)
+router.get("/mine", requireAuth(), getMyEvents)  // ✅ before /:id
 router.get("/:id", getEventById)
 router.post("/", requireAuth(), createEvent)
 router.post("/:id/join", requireAuth(), joinEvent)

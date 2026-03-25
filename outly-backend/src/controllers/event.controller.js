@@ -105,7 +105,7 @@ export const leaveEvent = asyncHandler(async (req, res) => {
 })
 
 export const getMyEvents = asyncHandler(async (req, res) => {
-  const { userId } = req.params
+  const userId = req.auth.userId  // same as createEvent, joinEvent, leaveEvent
 
   const result = await pool.query(getMyEventsQuery, [userId])
 
