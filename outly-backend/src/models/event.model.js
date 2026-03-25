@@ -6,12 +6,15 @@ RETURNING *;
 
 export const getNearbyEventsQuery = `
 SELECT 
-e.*,
-COUNT(ep.user_id) AS participants,
+e.id, e.title, e.description, e.category, e.created_by,
+e.starts_at, e.ends_at, e.is_private, e.venue_id, e.created_at,
+ST_X(e.location::geometry) AS longitude,
+ST_Y(e.location::geometry) AS latitude,
+COUNT(ep.user_id) AS participant_count,
 ST_Distance(
     e.location,
     ST_SetSRID(ST_MakePoint($1,$2),4326)::geography
-) AS distance
+) AS distance_meters
 FROM events e
 LEFT JOIN event_participants ep
 ON e.id = ep.event_id
@@ -21,7 +24,7 @@ WHERE ST_DWithin(
     5000
 )
 GROUP BY e.id
-ORDER BY distance
+ORDER BY distance_meters
 `
 
 export const joinEventQuery = `
@@ -33,14 +36,18 @@ RETURNING *;
 
 export const getEventByIdQuery = `
 SELECT 
-e.*,
-COUNT(ep.user_id) AS participants
+e.id, e.title, e.description, e.category, e.created_by,
+e.starts_at, e.ends_at, e.is_private, e.venue_id, e.created_at,
+ST_X(e.location::geometry) AS longitude,
+ST_Y(e.location::geometry) AS latitude,
+COUNT(ep.user_id) AS participant_count
 FROM events e
 LEFT JOIN event_participants ep
 ON e.id = ep.event_id
 WHERE e.id = $1
 GROUP BY e.id
 `
+
 export const leaveEventQuery = `
 DELETE FROM event_participants
 WHERE user_id = $1 AND event_id = $2
