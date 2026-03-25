@@ -7,7 +7,8 @@ import { createEventQuery, getNearbyEventsQuery , joinEventQuery , getEventByIdQ
 export const createEvent = asyncHandler(async (req, res) => {
   const { title, description, lat, lng, category } = req.body
   const userId = req.auth.userId
-
+  console.log("req.auth:", req.auth)
+  console.log("userId:", req.auth?.userId)
   const result = await pool.query(createEventQuery, [
     title,
     description,
