@@ -6,9 +6,9 @@ import { createEventQuery, getNearbyEventsQuery , joinEventQuery , getEventByIdQ
 
 export const createEvent = asyncHandler(async (req, res) => {
   const { title, description, lat, lng, category } = req.body
-  const userId = req.auth.userId
+  const userId = req.auth().userId
   console.log("req.auth:", req.auth)
-  console.log("userId:", req.auth?.userId)
+  console.log("userId:", userId)
   const result = await pool.query(createEventQuery, [
     title,
     description,
@@ -43,7 +43,7 @@ export const getNearbyEvents = asyncHandler(async (req, res) => {
 export const joinEvent = asyncHandler(async (req, res) => {
 
     const { id } = req.params
-    const userId = req.auth.userId
+    const userId = req.auth().userId
 
     const event = await pool.query(getEventByIdQuery, [id])
 
@@ -85,7 +85,7 @@ export const getEventById = asyncHandler(async (req, res) => {
 export const leaveEvent = asyncHandler(async (req, res) => {
 
     const { id } = req.params
-    const userId = req.auth.userId
+    const userId = req.auth().userId
 
     const result = await pool.query(leaveEventQuery, [
         userId,
@@ -106,7 +106,7 @@ export const leaveEvent = asyncHandler(async (req, res) => {
 })
 
 export const getMyEvents = asyncHandler(async (req, res) => {
-  const userId = req.auth.userId  // same as createEvent, joinEvent, leaveEvent
+  const userId = req.auth().userId  // same as createEvent, joinEvent, leaveEvent
 
   const result = await pool.query(getMyEventsQuery, [userId])
 

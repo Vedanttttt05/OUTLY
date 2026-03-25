@@ -6,7 +6,7 @@ import { createVenueQuery, getVenueByIdQuery, getNearbyVenuesQuery, getMyVenuesQ
 
 export const createVenue = asyncHandler(async (req, res) => {
     const { name, lat, lng, category } = req.body
-    const userId = req.auth.userId
+    const userId = req.auth().userId
 
     const result = await pool.query(createVenueQuery, [name, userId, lng, lat, category])
 
@@ -36,7 +36,7 @@ export const getVenueById = asyncHandler(async (req, res) => {
 })
 
 export const getMyVenues = asyncHandler(async (req, res) => {
-    const userId = req.auth.userId
+    const userId = req.auth().userId
 
     const result = await pool.query(getMyVenuesQuery, [userId])
 
