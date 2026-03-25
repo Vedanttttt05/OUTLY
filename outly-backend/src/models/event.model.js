@@ -1,6 +1,6 @@
 export const createEventQuery = `
-INSERT INTO events (title, description, location, created_by)
-VALUES ($1,$2,ST_SetSRID(ST_MakePoint($3,$4),4326)::geography,$5)
+INSERT INTO events (title, description, location, created_by, category)
+VALUES ($1,$2,ST_SetSRID(ST_MakePoint($3,$4),4326)::geography,$5,$6)
 RETURNING *;
 `
 

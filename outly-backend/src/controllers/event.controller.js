@@ -5,21 +5,21 @@ import { asyncHandler } from "../utils/asyncHandler.js"
 import { createEventQuery, getNearbyEventsQuery , joinEventQuery , getEventByIdQuery , leaveEventQuery} from "../models/event.model.js"
 
 export const createEvent = asyncHandler(async (req, res) => {
+  const { title, description, lat, lng, category } = req.body
+  const userId = req.auth.userId
 
-    const { title, description, lat, lng } = req.body
-    const userId = req.auth.userId
+  const result = await pool.query(createEventQuery, [
+    title,
+    description,
+    lng,
+    lat,
+    userId,
+    category
+  ])
 
-    const result = await pool.query(createEventQuery, [
-        title,
-        description,
-        lng,
-        lat,
-        userId
-    ])
-
-    return res
-        .status(201)
-        .json(new ApiResponse(201, "Event created successfully", result.rows[0]))
+  return res
+    .status(201)
+    .json(new ApiResponse(201, "Event created successfully", result.rows[0]))
 })
 
 
