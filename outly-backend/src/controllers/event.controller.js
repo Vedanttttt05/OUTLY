@@ -103,3 +103,13 @@ export const leaveEvent = asyncHandler(async (req, res) => {
         )
     )
 })
+
+export const getMyEvents = asyncHandler(async (req, res) => {
+  const { userId } = req.params
+
+  const result = await pool.query(getMyEventsQuery, [userId])
+
+  return res.json(
+    new ApiResponse(200, "My events fetched", result.rows)
+  )
+})

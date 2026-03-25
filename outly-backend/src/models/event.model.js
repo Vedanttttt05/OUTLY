@@ -53,3 +53,19 @@ DELETE FROM event_participants
 WHERE user_id = $1 AND event_id = $2
 RETURNING event_id;
 `
+
+export const getMyEventsQuery = `
+SELECT 
+  e.*,
+  ST_X(e.location::geometry) AS longitude,
+  ST_Y(e.location::geometry) AS latitude,
+  COUNT(ep.user_id) AS participant_count
+FROM events e
+LEFT JOIN event_participants ep ON e.id = ep.event_id
+WHERE e.created_by = $1
+   OR e.id IN (
+     SELECT event_id FROM event_participants WHERE user_id = $1
+   )
+GROUP BY e.id
+ORDER BY e.created_at DESC;
+`
