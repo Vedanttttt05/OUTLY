@@ -3,9 +3,7 @@ import cors from "cors";
 import morgan from "morgan";
 import http from "http";
 import { initSocket } from "./socket.js";
-import { clerkMiddleware } from "@clerk/express";
-import { mockAuth } from "./middlewares/mockAuth.js"
-
+import { clerkMiddleware } from "@clerk/express"; // add this
 
 import webhookRoutes from "./routes/webhook.routes.js";
 import venueRouter from "./routes/venue.routes.js";
@@ -16,9 +14,9 @@ const server = http.createServer(app);
 initSocket(server);
 
 app.use(cors());
-app.use(mockAuth) // add this, all routes get req.auth now
 app.use(express.json());
 app.use(morgan("dev"));
+app.use(clerkMiddleware());
 
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/venues", venueRouter);
