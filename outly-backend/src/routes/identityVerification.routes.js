@@ -11,7 +11,7 @@ const router = Router();
 
 router.post('/request', requireAuth(), submitIdentityVerificationRequest);
 router.get('/my/latest', requireAuth(), getMyLatestVerificationRequest);
-router.get('/admin/requests', requireAuth(), getVerificationRequestsForAdmin);
-router.patch('/admin/requests/:id', requireAuth(), reviewVerificationRequest);
+router.get('/admin/requests', getVerificationRequestsForAdmin);
+router.patch('/admin/requests/:id', reviewVerificationRequest);
 
 export default router;

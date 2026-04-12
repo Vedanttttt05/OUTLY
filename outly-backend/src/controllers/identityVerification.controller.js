@@ -37,6 +37,42 @@ const ensureAdminAccess = (userId) => {
   }
 };
 
+const getAdminPanelSecret = () => String(process.env.ADMIN_PANEL_SECRET || '').trim();
+
+const getProvidedAdminSecret = (req) => {
+  const fromHeader = req.headers['x-admin-secret'];
+  const fromQuery = req.query.secret;
+
+  return String(fromHeader || fromQuery || '').trim();
+};
+
+const ensureAdminPanelAccess = (req) => {
+  const configuredSecret = getAdminPanelSecret();
+  const providedSecret = getProvidedAdminSecret(req);
+
+  if (providedSecret) {
+    if (!configuredSecret) {
+      throw new ApiError('ADMIN_PANEL_SECRET is not configured on server', '', [], 503);
+    }
+
+    if (providedSecret !== configuredSecret) {
+      throw new ApiError('Invalid admin secret', '', [], 401);
+    }
+
+    return 'admin-secret';
+  }
+
+  const auth = req.auth?.();
+  const userId = auth?.userId;
+
+  if (!userId) {
+    throw new ApiError('Authentication required', '', [], 401);
+  }
+
+  ensureAdminAccess(userId);
+  return userId;
+};
+
 const isValidBirthday = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 const isValidDocumentNumber = (value) => /^[A-Za-z0-9\-\/]{4,32}$/.test(value);
 
@@ -143,8 +179,7 @@ export const getMyLatestVerificationRequest = asyncHandler(async (req, res) => {
 });
 
 export const getVerificationRequestsForAdmin = asyncHandler(async (req, res) => {
-  const userId = req.auth().userId;
-  ensureAdminAccess(userId);
+  ensureAdminPanelAccess(req);
 
   const rawStatus = req.query.status;
   const status = typeof rawStatus === 'string' && rawStatus.trim() ? rawStatus.trim() : null;
@@ -167,8 +202,7 @@ export const getVerificationRequestsForAdmin = asyncHandler(async (req, res) => 
 });
 
 export const reviewVerificationRequest = asyncHandler(async (req, res) => {
-  const adminUserId = req.auth().userId;
-  ensureAdminAccess(adminUserId);
+  const reviewerId = ensureAdminPanelAccess(req);
 
   const requestId = Number(req.params.id);
   const { status, adminNote } = req.body;
@@ -187,7 +221,7 @@ export const reviewVerificationRequest = asyncHandler(async (req, res) => {
     requestId,
     status,
     adminNote ? String(adminNote).trim() : null,
-    adminUserId,
+    reviewerId,
   ]);
 
   if (!result.rows.length) {
