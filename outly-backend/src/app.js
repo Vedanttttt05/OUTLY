@@ -8,6 +8,7 @@ import { clerkMiddleware } from "@clerk/express";
 import webhookRoutes from "./routes/webhook.routes.js";
 import venueRouter from "./routes/venue.routes.js";
 import eventRoutes from "./routes/event.routes.js";
+import identityVerificationRoutes from "./routes/identityVerification.routes.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -19,9 +20,10 @@ app.use(clerkMiddleware());
 
 app.use("/api/webhooks", express.raw({ type: "application/json" }), webhookRoutes);
 
-app.use(express.json());
+app.use(express.json({ limit: "12mb" }));
 app.use("/api/venues", venueRouter);
 app.use("/api/events", eventRoutes);
+app.use("/api/identity-verification", identityVerificationRoutes);
 
 app.get("/api/health", (req, res) => {
   res.status(200).json({
