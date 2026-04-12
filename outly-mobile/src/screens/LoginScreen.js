@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import { useSignIn, useSignUp } from '@clerk/clerk-expo';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import FadeInView from '../components/FadeInView';
+import { colors, radii, shadow } from '../theme/ui';
 
 const formatDate = (date) => {
   const year = date.getFullYear();
@@ -29,12 +31,18 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   const onBirthdayChange = (_, selectedDate) => {
+    if (selectedDate) {
+      setBirthdayDate(selectedDate);
+    }
+
     if (Platform.OS === 'android') {
       setShowBirthdayPicker(false);
     }
+  };
 
-    if (selectedDate) {
-      setBirthdayDate(selectedDate);
+  const onBirthdayDismiss = () => {
+    if (Platform.OS === 'android') {
+      setShowBirthdayPicker(false);
     }
   };
 
@@ -132,7 +140,9 @@ const handleVerify = async () => {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.inner}>
+        <View pointerEvents="none" style={styles.backdropBlobTop} />
+        <View pointerEvents="none" style={styles.backdropBlobBottom} />
+        <FadeInView style={styles.inner}>
           <Text style={styles.title}>Check your email</Text>
           <Text style={styles.subtitle}>We sent a verification code to {email}</Text>
           <TextInput
@@ -157,7 +167,7 @@ const handleVerify = async () => {
           <TouchableOpacity onPress={() => setMode('signup')}>
             <Text style={styles.switchText}>← Back</Text>
           </TouchableOpacity>
-        </View>
+        </FadeInView>
       </KeyboardAvoidingView>
     );
   }
@@ -167,7 +177,9 @@ const handleVerify = async () => {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.inner}>
+      <View pointerEvents="none" style={styles.backdropBlobTop} />
+      <View pointerEvents="none" style={styles.backdropBlobBottom} />
+      <FadeInView style={styles.inner}>
         <Text style={styles.appName}>Outly</Text>
         <Text style={styles.tagline}>Meet people near you</Text>
 
@@ -213,7 +225,8 @@ const handleVerify = async () => {
                 value={birthdayDate || new Date(2000, 0, 1)}
                 mode="date"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={onBirthdayChange}
+                onValueChange={onBirthdayChange}
+                onDismiss={onBirthdayDismiss}
                 maximumDate={new Date()}
               />
             )}
@@ -250,75 +263,106 @@ const handleVerify = async () => {
               </Text>
           }
         </TouchableOpacity>
-      </View>
+      </FadeInView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f0f' },
+  container: { flex: 1, backgroundColor: colors.background },
+  backdropBlobTop: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 280,
+    backgroundColor: '#D5F5EE',
+    top: -120,
+    right: -80,
+    opacity: 0.95,
+  },
+  backdropBlobBottom: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 220,
+    backgroundColor: '#DDEAFB',
+    bottom: -90,
+    left: -70,
+    opacity: 0.95,
+  },
   inner: {
     flex: 1,
     justifyContent: 'center',
     padding: 24,
     gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    marginHorizontal: 12,
+    marginVertical: 22,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    ...shadow.card,
   },
   appName: {
     fontSize: 48,
     fontWeight: '900',
-    color: '#6C63FF',
+    color: colors.accentDeep,
     textAlign: 'center',
     marginBottom: 4,
+    letterSpacing: 0.3,
   },
   tagline: {
     fontSize: 16,
-    color: '#888',
+    color: colors.textMuted,
     textAlign: 'center',
     marginBottom: 24,
   },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
+    backgroundColor: colors.backgroundSoft,
+    borderRadius: radii.md,
     padding: 4,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   tab: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: radii.sm,
     alignItems: 'center',
   },
-  tabActive: { backgroundColor: '#6C63FF' },
-  tabText: { color: '#888', fontWeight: '600' },
-  tabTextActive: { color: '#fff' },
+  tabActive: { backgroundColor: colors.surface },
+  tabText: { color: colors.textMuted, fontWeight: '700' },
+  tabTextActive: { color: colors.text },
   input: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
     padding: 14,
     fontSize: 15,
-    color: '#fff',
+    color: colors.text,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: colors.border,
     justifyContent: 'center',
   },
   inputText: {
-    color: '#fff',
+    color: colors.text,
     fontSize: 15,
   },
   inputPlaceholder: {
-    color: '#aaa',
+    color: colors.textMuted,
     fontSize: 15,
   },
   btn: {
-    backgroundColor: '#6C63FF',
-    borderRadius: 12,
+    backgroundColor: colors.accent,
+    borderRadius: radii.md,
     padding: 16,
     alignItems: 'center',
     marginTop: 8,
+    ...shadow.lift,
   },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  switchText: { color: '#6C63FF', textAlign: 'center', marginTop: 8 },
-  subtitle: { color: '#888', textAlign: 'center', marginBottom: 16 },
-  title: { color: '#fff', fontSize: 24, fontWeight: '800', textAlign: 'center' },
+  btnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  switchText: { color: colors.accentDeep, textAlign: 'center', marginTop: 8, fontWeight: '700' },
+  subtitle: { color: colors.textMuted, textAlign: 'center', marginBottom: 16 },
+  title: { color: colors.text, fontSize: 24, fontWeight: '800', textAlign: 'center' },
 });

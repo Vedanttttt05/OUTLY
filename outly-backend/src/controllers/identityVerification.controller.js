@@ -2,10 +2,14 @@ import pool from '../db/connection.js';
 import ApiResponse from '../utils/apiResponse.js';
 import ApiError from '../utils/apiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { normalizeImageReference } from '../utils/cloudinary.js';
 import {
   createIdentityVerificationTableQuery,
   identityVerificationColumnSyncQueries,
   insertIdentityVerificationRequestQuery,
+  getAnyIdentityVerificationByUserQuery,
+  updateIdentityVerificationRequestByIdQuery,
+  deleteIdentityVerificationRequestsByUserQuery,
   getLatestIdentityVerificationByUserQuery,
   getIdentityVerificationRequestsQuery,
   reviewIdentityVerificationRequestQuery,
@@ -235,7 +239,11 @@ const buildAdminPanelHtml = ({ secret, status }) => {
 
     const reviewRequest = async (id, nextStatus) => {
       const note = window.prompt('Optional admin note:', '');
-      const response = await fetch(buildUrl('') + '&_=' + Date.now().toString().slice(-6), {
+      const patchUrl = apiBase + '/' + encodeURIComponent(id)
+        + '?secret=' + encodeURIComponent(secret)
+        + '&_=' + Date.now().toString().slice(-6);
+
+      const response = await fetch(patchUrl, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus, adminNote: note || '' }),
@@ -251,8 +259,8 @@ const buildAdminPanelHtml = ({ secret, status }) => {
       const statusClass = esc(row.status || 'pending');
       const createdAt = row.createdAt ? new Date(row.createdAt).toLocaleString() : '-';
       const reviewedAt = row.reviewedAt ? new Date(row.reviewedAt).toLocaleString() : '-';
-      const docImage = row.documentImageBase64 || row.aadhaarImageBase64 || '';
-      const selfieImage = row.selfieImageBase64 || '';
+      const docImage = row.documentImageUrl || row.documentImageBase64 || row.aadhaarImageUrl || row.aadhaarImageBase64 || '';
+      const selfieImage = row.selfieImageUrl || row.selfieImageBase64 || '';
 
       return '<div class="card">'
         + '<div class="status ' + statusClass + '">' + statusClass.toUpperCase() + '</div>'
@@ -339,9 +347,13 @@ const isValidDocumentNumber = (value) => /^[A-Za-z0-9\-\/]{4,32}$/.test(value);
 
 const hasImagePayload = (value) => {
   if (!value || typeof value !== 'string') return false;
-  if (value.length < 100) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
 
-  return value.startsWith('data:image/') || /^[A-Za-z0-9+/=\s]+$/.test(value);
+  if (/^https?:\/\//i.test(trimmed)) return true;
+  if (trimmed.length < 100) return false;
+
+  return trimmed.startsWith('data:image/') || /^[A-Za-z0-9+/=\s]+$/.test(trimmed);
 };
 
 const serializeVerification = (row) => ({
@@ -352,6 +364,7 @@ const serializeVerification = (row) => ({
   birthday: row.birthday,
   documentType: row.document_type || 'Aadhaar',
   documentNumber: row.document_number || row.aadhaar_number,
+  documentImageUrl: row.document_image_url || row.aadhaar_image_url || null,
   documentImageBase64: row.document_image_base64 || row.aadhaar_image_base64,
   status: row.status,
   adminNote: row.admin_note,
@@ -360,67 +373,250 @@ const serializeVerification = (row) => ({
   createdAt: row.created_at,
   updatedAt: row.updated_at,
   aadhaarNumber: row.aadhaar_number,
+  aadhaarImageUrl: row.aadhaar_image_url || row.document_image_url || null,
   aadhaarImageBase64: row.aadhaar_image_base64,
+  selfieImageUrl: row.selfie_image_url || null,
   selfieImageBase64: row.selfie_image_base64,
 });
 
-export const submitIdentityVerificationRequest = asyncHandler(async (req, res) => {
-  const userId = req.auth().userId;
-  const {
+const serializeVerificationListRow = (row) => ({
+  id: row.id,
+  userId: row.user_id,
+  firstName: row.first_name,
+  lastName: row.last_name,
+  birthday: row.birthday,
+  documentType: row.document_type || 'Aadhaar',
+  documentNumber: row.document_number || row.aadhaar_number,
+  status: row.status,
+  adminNote: row.admin_note,
+  reviewedBy: row.reviewed_by,
+  reviewedAt: row.reviewed_at,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  hasDocumentImage: Boolean(row.has_document_image),
+  hasSelfieImage: Boolean(row.has_selfie_image),
+});
+
+const parsePaginationParams = (req) => {
+  const rawPage = Number(req.query.page);
+  const rawLimit = Number(req.query.limit);
+
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1;
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 100) : 20;
+
+  return {
+    page,
+    limit,
+    offset: (page - 1) * limit,
+  };
+};
+
+const parseSortParam = (rawSort) => {
+  const normalized = String(rawSort || '').trim().toLowerCase();
+  const sortMap = {
+    created_desc: 'created_at DESC',
+    created_asc: 'created_at ASC',
+    reviewed_desc: 'reviewed_at DESC NULLS LAST, created_at DESC',
+    reviewed_asc: 'reviewed_at ASC NULLS LAST, created_at DESC',
+    updated_desc: 'updated_at DESC',
+    updated_asc: 'updated_at ASC',
+  };
+
+  return sortMap[normalized] || sortMap.created_desc;
+};
+
+const buildAdminRequestsWhere = ({ status, search }) => {
+  const values = [];
+  const clauses = [];
+
+  if (status) {
+    values.push(status);
+    clauses.push(`status = $${values.length}`);
+  }
+
+  if (search) {
+    values.push(`%${search}%`);
+    clauses.push(`(
+      user_id ILIKE $${values.length}
+      OR first_name ILIKE $${values.length}
+      OR last_name ILIKE $${values.length}
+      OR COALESCE(document_number, aadhaar_number, '') ILIKE $${values.length}
+    )`);
+  }
+
+  return {
+    values,
+    whereSql: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '',
+  };
+};
+
+const normalizeVerificationPayload = (body, fallback = null) => {
+  const firstName = String(body.firstName || fallback?.firstName || '').trim();
+  const lastName = String(body.lastName || fallback?.lastName || '').trim();
+  const birthday = String(body.birthday || fallback?.birthday || '').trim();
+  const documentType = String(body.documentType || fallback?.documentType || 'Aadhaar').trim();
+  const documentNumber = String(
+    body.documentNumber || body.aadhaarNumber || fallback?.documentNumber || fallback?.aadhaarNumber || ''
+  ).trim();
+  const documentImageRef = String(
+    body.documentImageBase64 ||
+      body.documentImageUrl ||
+      body.aadhaarImageBase64 ||
+      body.aadhaarImageUrl ||
+      fallback?.documentImageUrl ||
+      fallback?.documentImageBase64 ||
+      fallback?.aadhaarImageUrl ||
+      fallback?.aadhaarImageBase64 ||
+      ''
+  ).trim();
+  const selfieImageRef = String(
+    body.selfieImageBase64 || body.selfieImageUrl || fallback?.selfieImageUrl || fallback?.selfieImageBase64 || ''
+  ).trim();
+
+  if (!firstName || !lastName || !birthday || !documentType || !documentNumber) {
+    throw new ApiError('First name, last name, birthday, document type, and document number are required', '', [], 400);
+  }
+
+  if (!isValidBirthday(birthday)) {
+    throw new ApiError('Birthday must be in YYYY-MM-DD format', '', [], 400);
+  }
+
+  if (documentType.length < 2 || documentType.length > 50) {
+    throw new ApiError('Document type must be between 2 and 50 characters', '', [], 400);
+  }
+
+  if (!isValidDocumentNumber(documentNumber)) {
+    throw new ApiError('Document number format is invalid', '', [], 400);
+  }
+
+  if (!hasImagePayload(documentImageRef) || !hasImagePayload(selfieImageRef)) {
+    throw new ApiError('Document image and selfie image are required', '', [], 400);
+  }
+
+  return {
     firstName,
     lastName,
     birthday,
     documentType,
     documentNumber,
-    documentImageBase64,
-    aadhaarNumber,
-    aadhaarImageBase64,
-    selfieImageBase64,
-  } = req.body;
+    documentImageRef,
+    selfieImageRef,
+  };
+};
 
-  const normalizedDocumentType = String(documentType || 'Aadhaar').trim();
-  const normalizedDocumentNumber = String(documentNumber || aadhaarNumber || '').trim();
-  const normalizedDocumentImage = String(documentImageBase64 || aadhaarImageBase64 || '').trim();
-
-  if (!firstName || !lastName || !birthday || !normalizedDocumentType || !normalizedDocumentNumber) {
-    throw new ApiError('First name, last name, birthday, document type, and document number are required', '', [], 400);
-  }
-
-  const normalizedBirthday = String(birthday).trim();
-  if (!isValidBirthday(normalizedBirthday)) {
-    throw new ApiError('Birthday must be in YYYY-MM-DD format', '', [], 400);
-  }
-
-  if (normalizedDocumentType.length < 2 || normalizedDocumentType.length > 50) {
-    throw new ApiError('Document type must be between 2 and 50 characters', '', [], 400);
-  }
-
-  if (!isValidDocumentNumber(normalizedDocumentNumber)) {
-    throw new ApiError('Document number format is invalid', '', [], 400);
-  }
-
-  if (!hasImagePayload(normalizedDocumentImage) || !hasImagePayload(selfieImageBase64)) {
-    throw new ApiError('Document image and selfie image are required', '', [], 400);
-  }
+export const submitIdentityVerificationRequest = asyncHandler(async (req, res) => {
+  const userId = req.auth().userId;
 
   await ensureVerificationTable();
 
+  const existingResult = await pool.query(getAnyIdentityVerificationByUserQuery, [userId]);
+  if (existingResult.rows.length) {
+    throw new ApiError('Verification request already exists. Use update endpoint instead.', '', [], 409);
+  }
+
+  const payload = normalizeVerificationPayload(req.body);
+
+  const [documentImageUrl, selfieImageUrl] = await Promise.all([
+    normalizeImageReference({
+      image: payload.documentImageRef,
+      folder: 'outly/verification/documents',
+      publicIdPrefix: `${userId}-doc`,
+    }),
+    normalizeImageReference({
+      image: payload.selfieImageRef,
+      folder: 'outly/verification/selfies',
+      publicIdPrefix: `${userId}-selfie`,
+    }),
+  ]);
+
+  const documentLegacyValue = documentImageUrl || payload.documentImageRef;
+  const selfieLegacyValue = selfieImageUrl || payload.selfieImageRef;
+
   const result = await pool.query(insertIdentityVerificationRequestQuery, [
     userId,
-    String(firstName).trim(),
-    String(lastName).trim(),
-    normalizedBirthday,
-    normalizedDocumentType,
-    normalizedDocumentNumber,
-    normalizedDocumentImage,
-    normalizedDocumentNumber,
-    normalizedDocumentImage,
-    String(selfieImageBase64).trim(),
+    payload.firstName,
+    payload.lastName,
+    payload.birthday,
+    payload.documentType,
+    payload.documentNumber,
+    documentLegacyValue,
+    documentImageUrl,
+    payload.documentNumber,
+    documentLegacyValue,
+    documentImageUrl,
+    selfieLegacyValue,
+    selfieImageUrl,
   ]);
 
   return res
     .status(201)
     .json(new ApiResponse(201, 'Verification request submitted for admin review', serializeVerification(result.rows[0])));
+});
+
+export const updateMyVerificationRequest = asyncHandler(async (req, res) => {
+  const userId = req.auth().userId;
+
+  await ensureVerificationTable();
+
+  const existingResult = await pool.query(getAnyIdentityVerificationByUserQuery, [userId]);
+  if (!existingResult.rows.length) {
+    throw new ApiError('No existing verification request found to update', '', [], 404);
+  }
+
+  const existing = serializeVerification(existingResult.rows[0]);
+  const payload = normalizeVerificationPayload(req.body, existing);
+
+  const [documentImageUrl, selfieImageUrl] = await Promise.all([
+    normalizeImageReference({
+      image: payload.documentImageRef,
+      folder: 'outly/verification/documents',
+      publicIdPrefix: `${userId}-doc`,
+    }),
+    normalizeImageReference({
+      image: payload.selfieImageRef,
+      folder: 'outly/verification/selfies',
+      publicIdPrefix: `${userId}-selfie`,
+    }),
+  ]);
+
+  const documentLegacyValue = documentImageUrl || payload.documentImageRef;
+  const selfieLegacyValue = selfieImageUrl || payload.selfieImageRef;
+
+  const result = await pool.query(updateIdentityVerificationRequestByIdQuery, [
+    existing.id,
+    payload.firstName,
+    payload.lastName,
+    payload.birthday,
+    payload.documentType,
+    payload.documentNumber,
+    documentLegacyValue,
+    documentImageUrl,
+    documentLegacyValue,
+    documentImageUrl,
+    selfieLegacyValue,
+    selfieImageUrl,
+  ]);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, 'Verification request updated and sent for re-review', serializeVerification(result.rows[0])));
+});
+
+export const deleteMyVerificationRequest = asyncHandler(async (req, res) => {
+  const userId = req.auth().userId;
+
+  await ensureVerificationTable();
+
+  const result = await pool.query(deleteIdentityVerificationRequestsByUserQuery, [userId]);
+  if (!result.rows.length) {
+    throw new ApiError('No verification request found to delete', '', [], 404);
+  }
+
+  return res.status(200).json(
+    new ApiResponse(200, 'Verification request deleted', {
+      deletedCount: result.rows.length,
+    })
+  );
 });
 
 export const getMyLatestVerificationRequest = asyncHandler(async (req, res) => {
@@ -443,15 +639,11 @@ export const renderVerificationAdminPanel = asyncHandler(async (req, res) => {
   ensureAdminPanelAccess(req);
 
   const secret = getProvidedAdminSecret(req);
-  if (!secret) {
-    throw new ApiError('Provide ?secret=... to open this temporary admin UI', '', [], 400);
-  }
+  const redirectTarget = secret
+    ? `/admin/verification?secret=${encodeURIComponent(secret)}`
+    : '/admin/verification';
 
-  const rawStatus = req.query.status;
-  const status = typeof rawStatus === 'string' ? rawStatus.trim() : '';
-
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.status(200).send(buildAdminPanelHtml({ secret, status }));
+  res.redirect(302, redirectTarget);
 });
 
 export const getVerificationRequestsForAdmin = asyncHandler(async (req, res) => {
@@ -459,22 +651,139 @@ export const getVerificationRequestsForAdmin = asyncHandler(async (req, res) => 
 
   const rawStatus = req.query.status;
   const status = typeof rawStatus === 'string' && rawStatus.trim() ? rawStatus.trim() : null;
+  const rawSearch = req.query.search;
+  const search = typeof rawSearch === 'string' && rawSearch.trim() ? rawSearch.trim() : null;
 
   if (status && !['pending', 'approved', 'rejected'].includes(status)) {
     throw new ApiError('Invalid status filter', '', [], 400);
   }
 
+  if (search && search.length > 80) {
+    throw new ApiError('Search query is too long', '', [], 400);
+  }
+
+  const { page, limit, offset } = parsePaginationParams(req);
+  const orderBy = parseSortParam(req.query.sort);
+  const { values, whereSql } = buildAdminRequestsWhere({ status, search });
+
   await ensureVerificationTable();
 
-  const result = await pool.query(getIdentityVerificationRequestsQuery, [status]);
+  const listValues = [...values, limit, offset];
+  const listQuery = `
+    SELECT
+      id,
+      user_id,
+      first_name,
+      last_name,
+      birthday,
+      document_type,
+      document_number,
+      aadhaar_number,
+      status,
+      admin_note,
+      reviewed_by,
+      reviewed_at,
+      created_at,
+      updated_at,
+      (
+        document_image_url IS NOT NULL
+        OR aadhaar_image_url IS NOT NULL
+        OR document_image_base64 IS NOT NULL
+        OR aadhaar_image_base64 IS NOT NULL
+      ) AS has_document_image,
+      (
+        selfie_image_url IS NOT NULL
+        OR selfie_image_base64 IS NOT NULL
+      ) AS has_selfie_image
+    FROM identity_verification_requests
+    ${whereSql}
+    ORDER BY ${orderBy}
+    LIMIT $${values.length + 1}
+    OFFSET $${values.length + 2};
+  `;
+
+  const totalResult = await pool.query(
+    `SELECT COUNT(*)::INT AS total FROM identity_verification_requests ${whereSql};`,
+    values
+  );
+
+  const summaryResult = await pool.query(`
+    SELECT
+      COUNT(*)::INT AS total,
+      COUNT(*) FILTER (WHERE status = 'pending')::INT AS pending,
+      COUNT(*) FILTER (WHERE status = 'approved')::INT AS approved,
+      COUNT(*) FILTER (WHERE status = 'rejected')::INT AS rejected
+    FROM identity_verification_requests;
+  `);
+
+  const listResult = await pool.query(listQuery, listValues);
+  const total = totalResult.rows[0]?.total || 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const summary = summaryResult.rows[0] || { total: 0, pending: 0, approved: 0, rejected: 0 };
 
   return res.status(200).json(
     new ApiResponse(
       200,
       'Verification requests fetched for admin panel',
-      result.rows.map((row) => serializeVerification(row))
+      {
+        items: listResult.rows.map((row) => serializeVerificationListRow(row)),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+        },
+        summary,
+      }
     )
   );
+});
+
+export const getVerificationRequestByIdForAdmin = asyncHandler(async (req, res) => {
+  ensureAdminPanelAccess(req);
+
+  const requestId = Number(req.params.id);
+  if (!Number.isInteger(requestId) || requestId <= 0) {
+    throw new ApiError('Invalid verification request id', '', [], 400);
+  }
+
+  await ensureVerificationTable();
+
+  const result = await pool.query(
+    `SELECT
+      id,
+      user_id,
+      first_name,
+      last_name,
+      birthday,
+      document_type,
+      document_number,
+      document_image_base64,
+      document_image_url,
+      aadhaar_number,
+      aadhaar_image_base64,
+      aadhaar_image_url,
+      selfie_image_base64,
+      selfie_image_url,
+      status,
+      admin_note,
+      reviewed_by,
+      reviewed_at,
+      created_at,
+      updated_at
+    FROM identity_verification_requests
+    WHERE id = $1
+    LIMIT 1;`,
+    [requestId]
+  );
+
+  if (!result.rows.length) {
+    throw new ApiError('Verification request not found', '', [], 404);
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, 'Verification request fetched', serializeVerification(result.rows[0])));
 });
 
 export const reviewVerificationRequest = asyncHandler(async (req, res) => {
@@ -503,6 +812,12 @@ export const reviewVerificationRequest = asyncHandler(async (req, res) => {
   if (!result.rows.length) {
     throw new ApiError('Verification request not found', '', [], 404);
   }
+
+  const shouldVerify = status === 'approved';
+  await pool.query(`UPDATE users SET is_verified = $1, updated_at = NOW() WHERE id = $2`, [
+    shouldVerify,
+    result.rows[0].user_id,
+  ]);
 
   return res
     .status(200)

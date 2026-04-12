@@ -1,12 +1,22 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  ScrollView, ActivityIndicator, Alert, Modal
+  ScrollView, ActivityIndicator, Alert, Modal, Platform
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useApi } from '../services/api';
+import FadeInView from '../components/FadeInView';
+import { colors, radii, shadow } from '../theme/ui';
 
+const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
+const MAP_ACCENT = colors.accent;
+const MAP_ACCENT_RGB = '124,169,255';
+const MAP_TEXT = colors.text;
+const MAP_TEXT_MUTED = colors.textMuted;
+const MAP_BORDER = colors.border;
+const MAP_SHADOW_RGB = '127,143,178';
 const CATEGORIES = ['social', 'music', 'sports', 'food', 'art', 'tech', 'outdoor', 'other'];
 
 export default function CreateEventScreen({ navigation }) {
@@ -14,6 +24,10 @@ export default function CreateEventScreen({ navigation }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('social');
+  const [maxParticipants, setMaxParticipants] = useState('');
+  const [eventDateTime, setEventDateTime] = useState(new Date(Date.now() + 60 * 60 * 1000));
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [androidPickerMode, setAndroidPickerMode] = useState('date');
   const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState(null);
   const [locationLabel, setLocationLabel] = useState('');
@@ -55,6 +69,12 @@ export default function CreateEventScreen({ navigation }) {
       return;
     }
 
+    const parsedMax = maxParticipants.trim() ? Number(maxParticipants) : null;
+    if (parsedMax !== null && (!Number.isInteger(parsedMax) || parsedMax < 1)) {
+      Alert.alert('Invalid Capacity', 'Max participants must be a positive number');
+      return;
+    }
+
     setLoading(true);
     try {
       await api.post('/events', {
@@ -63,6 +83,8 @@ export default function CreateEventScreen({ navigation }) {
         category,
         lat: location.latitude,
         lng: location.longitude,
+        maxParticipants: parsedMax,
+        eventDateTime: eventDateTime.toISOString(),
       });
 
       Alert.alert('Event Created! 🎉', 'Your event is now live on the map', [
@@ -81,67 +103,116 @@ export default function CreateEventScreen({ navigation }) {
     <html>
     <head>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
+      <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        #map { width: 100vw; height: 100vh; }
+        body { width: 100vw; height: 100vh; overflow: hidden; }
+        #map { width: 100%; height: 100%; }
+
         #search-box {
-          position: absolute; top: 10px; left: 10px; right: 10px;
-          z-index: 1000; display: flex; gap: 6px;
+          position: absolute; top: 12px; left: 12px; right: 12px;
+          z-index: 10; display: flex; gap: 8px;
         }
         #search-input {
-          flex: 1; padding: 10px 14px; border-radius: 10px;
-          border: none; font-size: 14px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          flex: 1; padding: 11px 14px; border-radius: 12px;
+          border: 1px solid ${MAP_BORDER}; font-size: 14px;
+          background: #fff; color: ${MAP_TEXT};
+          box-shadow: 0 2px 8px rgba(${MAP_SHADOW_RGB},0.16);
+          outline: none;
         }
         #search-btn {
-          padding: 10px 14px; background: #6C63FF; color: white;
-          border: none; border-radius: 10px; font-size: 13px;
-          font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          padding: 11px 16px; background: ${MAP_ACCENT}; color: white;
+          border: none; border-radius: 12px; font-size: 13px;
+          font-weight: 700; box-shadow: 0 2px 8px rgba(${MAP_ACCENT_RGB},0.3);
+          cursor: pointer;
         }
         #confirm-btn {
           position: absolute; bottom: 24px; left: 16px; right: 16px;
-          z-index: 1000; padding: 14px; background: #6C63FF;
-          color: white; border: none; border-radius: 12px;
+          z-index: 10; padding: 15px; background: ${MAP_ACCENT};
+          color: white; border: none; border-radius: 14px;
           font-size: 16px; font-weight: 700;
-          box-shadow: 0 4px 12px rgba(108,99,255,0.4);
-          display: none;
+          box-shadow: 0 4px 16px rgba(${MAP_ACCENT_RGB},0.38);
+          display: none; cursor: pointer;
+        }
+        #locate-btn {
+          position: absolute;
+          right: 16px;
+          bottom: 96px;
+          z-index: 11;
+          width: 44px;
+          height: 44px;
+          border-radius: 22px;
+          border: 1px solid ${MAP_BORDER};
+          background: white;
+          box-shadow: 0 4px 12px rgba(${MAP_SHADOW_RGB},0.22);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        }
+        #locate-btn .dot {
+          width: 14px;
+          height: 14px;
+          border-radius: 7px;
+          background: ${MAP_ACCENT};
+          box-shadow: 0 0 0 4px rgba(${MAP_ACCENT_RGB},0.25);
         }
         #pin-hint {
           position: absolute; bottom: 24px; left: 16px; right: 16px;
-          z-index: 1000; padding: 14px; background: white;
-          border-radius: 12px; text-align: center;
-          font-size: 14px; color: #666;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          z-index: 10; padding: 14px; background: white;
+          border-radius: 14px; text-align: center;
+          font-size: 14px; color: ${MAP_TEXT_MUTED};
+          box-shadow: 0 2px 12px rgba(${MAP_SHADOW_RGB},0.16);
+          border: 1px solid ${MAP_BORDER};
         }
+
+        .mapboxgl-popup-content {
+          border-radius: 14px;
+          padding: 12px;
+          border: 1px solid ${MAP_BORDER};
+          box-shadow: 0 4px 16px rgba(${MAP_SHADOW_RGB},0.18);
+        }
+        .mapboxgl-popup-tip { display: none; }
       </style>
     </head>
     <body>
       <div id="search-box">
-        <input id="search-input" type="text" placeholder="Search place e.g. Seawoods Mall..." />
+        <input id="search-input" type="text" placeholder="Search a place..." />
         <button id="search-btn" onclick="searchPlace()">Go</button>
       </div>
       <div id="map"></div>
-      <div id="pin-hint">Tap anywhere on the map to drop a pin</div>
+      <button id="locate-btn" aria-label="Current location">
+        <span class="dot"></span>
+      </button>
+      <div id="pin-hint">📍 Tap anywhere on the map to drop a pin</div>
       <button id="confirm-btn" onclick="confirmLocation()">Confirm This Location ✓</button>
 
       <script>
-        var map = L.map('map').setView([${mapCenter.lat}, ${mapCenter.lng}], 15);
-        var marker = null;
-        var pickedLabel = '';
+        mapboxgl.accessToken = '${MAPBOX_TOKEN}';
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap'
-        }).addTo(map);
-
-        map.on('click', function(e) {
-          placeMarker(e.latlng.lat, e.latlng.lng, '');
+        var map = new mapboxgl.Map({
+          container: 'map',
+          style: 'mapbox://styles/mapbox/light-v11',
+          center: [${mapCenter.lng}, ${mapCenter.lat}],
+          zoom: 14,
         });
 
-        function placeMarker(lat, lng, label) {
-          if (marker) map.removeLayer(marker);
-          marker = L.marker([lat, lng]).addTo(map);
+        map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+
+        var marker = null;
+        var pickedLabel = '';
+        var myLocation = { lat: ${mapCenter.lat}, lng: ${mapCenter.lng} };
+
+        map.on('click', function(e) {
+          placeMarker(e.lngLat.lng, e.lngLat.lat, '');
+        });
+
+        function placeMarker(lng, lat, label) {
+          if (marker) marker.remove();
+          marker = new mapboxgl.Marker({ color: '${MAP_ACCENT}' })
+            .setLngLat([lng, lat])
+            .addTo(map);
           pickedLabel = label || (lat.toFixed(4) + ', ' + lng.toFixed(4));
           document.getElementById('confirm-btn').style.display = 'block';
           document.getElementById('pin-hint').style.display = 'none';
@@ -154,47 +225,98 @@ export default function CreateEventScreen({ navigation }) {
           fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(query))
             .then(r => r.json())
             .then(results => {
-              if (results.length === 0) {
+              if (!results.length) {
                 alert('Place not found. Try a different name.');
                 return;
               }
               var place = results[0];
               var lat = parseFloat(place.lat);
               var lng = parseFloat(place.lon);
-              map.setView([lat, lng], 17);
-              placeMarker(lat, lng, place.display_name.split(',').slice(0,2).join(','));
+              map.flyTo({ center: [lng, lat], zoom: 16, speed: 1.4 });
+              placeMarker(lng, lat, place.display_name.split(',').slice(0, 2).join(','));
             })
             .catch(() => alert('Search failed. Check your connection.'));
         }
 
         function confirmLocation() {
           if (!marker) return;
-          var latlng = marker.getLatLng();
+          var lngLat = marker.getLngLat();
           window.ReactNativeWebView.postMessage(JSON.stringify({
             type: 'LOCATION_PICKED',
-            lat: latlng.lat,
-            lng: latlng.lng,
-            label: pickedLabel
+            lat: lngLat.lat,
+            lng: lngLat.lng,
+            label: pickedLabel,
           }));
+        }
+
+        function recenterToMyLocation() {
+          map.flyTo({
+            center: [myLocation.lng, myLocation.lat],
+            zoom: map.getZoom(),
+            speed: 1.2,
+            essential: true,
+          });
         }
 
         document.getElementById('search-input').addEventListener('keypress', function(e) {
           if (e.key === 'Enter') searchPlace();
         });
+        document.getElementById('locate-btn').addEventListener('click', recenterToMyLocation);
       </script>
     </body>
     </html>
   `;
 
+  const formatDateTime = (date) => {
+    return date.toLocaleString('en-IN', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const onEventDateValueChange = (_, selectedDate) => {
+    if (selectedDate) {
+      if (Platform.OS === 'android') {
+        if (androidPickerMode === 'date') {
+          const next = new Date(eventDateTime);
+          next.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+          setEventDateTime(next);
+          setAndroidPickerMode('time');
+          return;
+        }
+        const next = new Date(eventDateTime);
+        next.setHours(selectedDate.getHours(), selectedDate.getMinutes(), 0, 0);
+        setEventDateTime(next);
+      } else {
+        setEventDateTime(selectedDate);
+      }
+    }
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+      setAndroidPickerMode('date');
+    }
+  };
+
+  const onEventDateDismiss = () => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+      setAndroidPickerMode('date');
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <ScrollView keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Create Event</Text>
-          <Text style={styles.headerSub}>Host something near you</Text>
-        </View>
+      <ScrollView keyboardShouldPersistTaps="handled"
+         contentContainerStyle={{ paddingBottom: 60 }}>
 
-        <View style={styles.form}>
+        <FadeInView style={styles.header} delay={40} distance={12} scaleFrom={0.985}>
+          <Text style={styles.headerTitle}>Create Event</Text>
+          <Text style={styles.headerSub}>Host something meaningful around you.</Text>
+        </FadeInView>
+
+        <FadeInView style={styles.form} delay={140} distance={18} scaleFrom={0.98}>
           <View style={styles.field}>
             <Text style={styles.label}>Event Title *</Text>
             <TextInput
@@ -202,7 +324,7 @@ export default function CreateEventScreen({ navigation }) {
               value={title}
               onChangeText={setTitle}
               placeholder="e.g. Rooftop Jam Session"
-              placeholderTextColor="#aaa"
+              placeholderTextColor={colors.textMuted}
               maxLength={80}
             />
           </View>
@@ -214,7 +336,7 @@ export default function CreateEventScreen({ navigation }) {
               value={description}
               onChangeText={setDescription}
               placeholder="Tell people what this event is about..."
-              placeholderTextColor="#aaa"
+              placeholderTextColor={colors.textMuted}
               multiline
               maxLength={300}
               numberOfLines={4}
@@ -236,6 +358,41 @@ export default function CreateEventScreen({ navigation }) {
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Event Date & Time</Text>
+            <TouchableOpacity
+              style={styles.locationBtn}
+              onPress={() => {
+                if (Platform.OS === 'android') setAndroidPickerMode('date');
+                setShowDatePicker(true);
+              }}
+            >
+              <Text style={styles.locationBtnText}>🗓️ {formatDateTime(eventDateTime)}</Text>
+            </TouchableOpacity>
+            {showDatePicker ? (
+              <DateTimePicker
+                value={eventDateTime}
+                mode={Platform.OS === 'android' ? androidPickerMode : 'datetime'}
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                minimumDate={new Date()}
+                onValueChange={onEventDateValueChange}
+                onDismiss={onEventDateDismiss}
+              />
+            ) : null}
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Max Participants (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={maxParticipants}
+              onChangeText={setMaxParticipants}
+              placeholder="e.g. 25"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="number-pad"
+            />
           </View>
 
           <View style={styles.field}>
@@ -264,7 +421,7 @@ export default function CreateEventScreen({ navigation }) {
               : <Text style={styles.createBtnText}>Create Event</Text>
             }
           </TouchableOpacity>
-        </View>
+        </FadeInView>
       </ScrollView>
 
       <Modal visible={showMapPicker} animationType="slide">
@@ -289,40 +446,50 @@ export default function CreateEventScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
-    backgroundColor: '#6C63FF',
+    backgroundColor: colors.surface,
     padding: 24,
     paddingTop: 52,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   headerTitle: {
-    color: '#fff',
+    color: colors.text,
     fontSize: 28,
     fontWeight: '800',
     marginBottom: 4,
   },
   headerSub: {
-    color: 'rgba(255,255,255,0.8)',
+    color: colors.textMuted,
     fontSize: 14,
   },
-  form: { padding: 16 },
+  form: {
+    padding: 16,
+    margin: 16,
+    backgroundColor: colors.surface,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadow.card,
+  },
   field: { marginBottom: 20 },
   label: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#444',
+    fontWeight: '800',
+    color: colors.text,
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   input: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.md,
     padding: 14,
     fontSize: 15,
-    color: '#1a1a1a',
-    borderWidth: 1.5,
-    borderColor: '#eee',
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   textArea: {
     height: 100,
@@ -336,63 +503,64 @@ const styles = StyleSheet.create({
   catChip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    borderWidth: 1.5,
-    borderColor: '#eee',
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   catChipActive: {
-    backgroundColor: '#6C63FF',
-    borderColor: '#6C63FF',
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accent,
   },
   catText: {
     fontSize: 13,
-    color: '#666',
+    color: colors.textMuted,
     fontWeight: '600',
     textTransform: 'capitalize',
   },
-  catTextActive: { color: '#fff' },
+  catTextActive: { color: colors.accentDeep, fontWeight: '800' },
   locationBtn: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.md,
     padding: 14,
-    borderWidth: 1.5,
-    borderColor: '#6C63FF',
+    borderWidth: 1,
+    borderColor: colors.accent,
     alignItems: 'center',
   },
   locationBtnText: {
-    color: '#6C63FF',
+    color: colors.accentDeep,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   locationPicked: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.md,
     padding: 14,
-    borderWidth: 1.5,
-    borderColor: '#2ecc71',
+    borderWidth: 1,
+    borderColor: colors.success,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   locationPickedText: {
-    color: '#1a1a1a',
+    color: colors.text,
     fontSize: 14,
     flex: 1,
   },
   changeLocation: {
-    color: '#6C63FF',
-    fontWeight: '700',
+    color: colors.accentDeep,
+    fontWeight: '800',
     fontSize: 14,
   },
   createBtn: {
-    backgroundColor: '#6C63FF',
-    borderRadius: 14,
+    backgroundColor: colors.accent,
+    borderRadius: radii.md,
     padding: 16,
     alignItems: 'center',
     marginTop: 8,
+    ...shadow.lift,
   },
-  createBtnDisabled: { backgroundColor: '#aaa' },
+  createBtnDisabled: { backgroundColor: colors.textMuted },
   createBtnText: {
     color: '#fff',
     fontSize: 16,
@@ -404,7 +572,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     paddingTop: 48,
-    backgroundColor: '#6C63FF',
+    backgroundColor: colors.accent,
   },
   modalTitle: {
     color: '#fff',

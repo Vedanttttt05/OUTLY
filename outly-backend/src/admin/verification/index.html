@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Outly Verification Admin</title>
+  <link rel="stylesheet" href="/admin-assets/verification/styles.css" />
+  <script defer src="/admin-assets/verification/app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>Verification Control Center</h1>
+        <p>Review identity submissions with confidence and audit visibility.</p>
+      </div>
+      <div class="session-meta">
+        <span id="authState" class="badge badge-neutral">Auth not verified</span>
+        <button id="openSecretModalBtn" class="btn btn-secondary" type="button">Set Admin Secret</button>
+      </div>
+    </header>
+
+    <main class="main-grid">
+      <section class="panel panel-wide">
+        <div class="panel-head">
+          <h2>Requests</h2>
+          <button id="reloadBtn" class="btn btn-secondary" type="button">Reload</button>
+        </div>
+
+        <div class="toolbar">
+          <div class="field search-field">
+            <label for="searchInput">Search</label>
+            <input id="searchInput" type="search" placeholder="Name, user id, doc number" />
+          </div>
+
+          <div class="field">
+            <label for="statusFilter">Status</label>
+            <select id="statusFilter">
+              <option value="">All</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="sortBy">Sort</label>
+            <select id="sortBy">
+              <option value="created_desc">Newest</option>
+              <option value="created_asc">Oldest</option>
+              <option value="reviewed_desc">Recently Reviewed</option>
+              <option value="updated_desc">Last Updated</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="pageSize">Page size</label>
+            <select id="pageSize">
+              <option value="10">10</option>
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="summary-grid">
+          <article class="summary-card">
+            <p>Total</p>
+            <h3 id="summaryTotal">0</h3>
+          </article>
+          <article class="summary-card summary-pending">
+            <p>Pending</p>
+            <h3 id="summaryPending">0</h3>
+          </article>
+          <article class="summary-card summary-approved">
+            <p>Approved</p>
+            <h3 id="summaryApproved">0</h3>
+          </article>
+          <article class="summary-card summary-rejected">
+            <p>Rejected</p>
+            <h3 id="summaryRejected">0</h3>
+          </article>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>User</th>
+                <th>Name</th>
+                <th>Document</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Reviewed</th>
+              </tr>
+            </thead>
+            <tbody id="requestsBody">
+              <tr>
+                <td colspan="7" class="empty-cell">No data</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pagination-bar">
+          <button id="prevPageBtn" class="btn btn-secondary" type="button">Previous</button>
+          <span id="pageMeta">Page 1 of 1</span>
+          <button id="nextPageBtn" class="btn btn-secondary" type="button">Next</button>
+        </div>
+      </section>
+
+      <aside class="panel panel-side" id="detailPanel" aria-live="polite">
+        <div class="panel-head">
+          <h2>Request Details</h2>
+          <span id="detailStatusBadge" class="badge badge-neutral">Select row</span>
+        </div>
+
+        <div id="detailContent" class="detail-placeholder">
+          Select a request to review identity details, verify images, and approve or reject.
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <div id="secretModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="secretModalTitle">
+    <div class="modal-card">
+      <h2 id="secretModalTitle">Admin Access</h2>
+      <p>Enter the admin secret to unlock verification tools.</p>
+      <label for="secretInput">Admin Secret</label>
+      <input id="secretInput" type="password" autocomplete="off" placeholder="Enter admin secret" />
+      <p id="secretError" class="error-text hidden"></p>
+      <div class="modal-actions">
+        <button id="saveSecretBtn" class="btn" type="button">Unlock</button>
+        <button id="cancelSecretBtn" class="btn btn-secondary" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="imageLightbox" class="lightbox hidden">
+    <button id="closeLightboxBtn" class="lightbox-close" type="button" aria-label="Close image">X</button>
+    <img id="lightboxImage" alt="Verification document" />
+  </div>
+</body>
+</html>
