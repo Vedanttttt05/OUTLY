@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "outly-mobile",
+    "name": "OUTLY",
     "slug": "outly-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,9 +12,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.waydont.outly"
     },
     "android": {
+      "package": "com.waydont.outly",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -24,6 +26,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "4e705e7a-44b9-4230-9885-32fb1d88f906"
+      }
+    },
+    "owner": "way.dont"
   }
 }
